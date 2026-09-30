@@ -1,6 +1,7 @@
 name: Build Resham Room
 
 on:
+  push:
   schedule:
     - cron: "30 1 * * *"   # every day, early morning India time
   workflow_dispatch:        # lets you run it by hand from the Actions tab
@@ -26,10 +27,15 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install pillow
-      - run: mkdir -p site && OUTPUT=site/index.html python resham_room.py
+      - name: Build page and update private sheet
+        run: mkdir -p site && OUTPUT=site/index.html python resham_room.py
+        env:
+          SHEET_URL: ${{ secrets.SHEET_URL }}
+          SHEET_TOKEN: ${{ secrets.SHEET_TOKEN }}
+          CODE_SALT: ${{ secrets.CODE_SALT }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: site
+          path: site          # only the page is published, nothing else
       - id: deploy
         uses: actions/deploy-pages@v4
