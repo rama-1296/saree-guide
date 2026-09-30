@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """
 Pulls silk sarees between MIN_PRICE and MAX_PRICE from tathastu.fashion and
-hastakalaethnic.com and writes an image-only gallery page with colour, silk,
-weave and shop filters. Clicking a saree opens its photos in a viewer.
+hastakalaethnic.com and writes an image-only gallery page with a colour filter. Clicking a saree opens its photos in a viewer.
 No prices or titles are shown.
 
 Run:   python3 resham_room.py
@@ -43,21 +42,21 @@ except ImportError:
     HAVE_PIL = False
 
 COLOURS = {
-    "Red":    ("Sindoor", "#B3202A"),
-    "Pink":   ("Rani", "#D63C83"),
-    "Orange": ("Kesar", "#E27B26"),
-    "Yellow": ("Haldi", "#E8B923"),
-    "Gold":   ("Zari", "#C09A45"),
-    "Green":  ("Mehendi", "#4E7A2E"),
-    "Teal":   ("Mor", "#127A7A"),
-    "Blue":   ("Neel", "#1F3F8F"),
-    "Purple": ("Jamun", "#5E2B6E"),
-    "Brown":  ("Kattha", "#7A4A2A"),
-    "Black":  ("Kajal", "#1A1A1A"),
-    "Grey":   ("Dhuan", "#8A8A8A"),
-    "White":  ("Chandan", "#EDE3CF"),
-    "Silver": ("Chandi", "#C4C7CC"),
-    "Multi":  ("Rangoli", "conic-gradient(#B3202A,#E8B923,#4E7A2E,#1F3F8F,#B3202A)"),
+    "Red":    ("Red", "#B3202A"),
+    "Pink":   ("Pink", "#D63C83"),
+    "Orange": ("Orange", "#E27B26"),
+    "Yellow": ("Yellow", "#E8B923"),
+    "Gold":   ("Gold", "#C09A45"),
+    "Green":  ("Green", "#4E7A2E"),
+    "Teal":   ("Teal", "#127A7A"),
+    "Blue":   ("Blue", "#1F3F8F"),
+    "Purple": ("Purple", "#5E2B6E"),
+    "Brown":  ("Brown", "#7A4A2A"),
+    "Black":  ("Black", "#1A1A1A"),
+    "Grey":   ("Grey", "#8A8A8A"),
+    "White":  ("Cream & white", "#EDE3CF"),
+    "Silver": ("Silver", "#C4C7CC"),
+    "Multi":  ("Multicolour", "conic-gradient(#B3202A,#E8B923,#4E7A2E,#1F3F8F,#B3202A)"),
 }
 
 COLOUR_WORDS = [
@@ -78,30 +77,6 @@ COLOUR_WORDS = [
     (r"multi ?colou?r|multi", "Multi"),
 ]
 
-SILK_TYPES = {"Pure silk": "Shuddh resham", "Art silk": "Kala resham", "Silk": "Resham"}
-
-WEAVES = [
-    (r"paithani", "Paithani"),
-    (r"kanjeevaram|kanjivaram|kanchipuram|kanjeevram", "Kanjeevaram"),
-    (r"banarasi|benarasi", "Banarasi"),
-    (r"brocade", "Brocade"),
-    (r"tissue", "Tissue"),
-    (r"katan", "Katan"),
-    (r"tussar|tussore|tasar", "Tussar"),
-    (r"soft silk", "Soft silk"),
-    (r"patola", "Patola"),
-    (r"irkal|ilkal", "Irkal"),
-    (r"chanderi", "Chanderi"),
-    (r"organza", "Organza"),
-    (r"apurva", "Apurva"),
-    (r"gadwal", "Gadwal"),
-    (r"nalli", "Nalli"),
-    (r"dola", "Dola"),
-    (r"pashmina", "Pashmina"),
-    (r"narayanpet", "Narayanpet"),
-    (r"printed", "Printed"),
-]
-
 NOT_SAREE = re.compile(
     r"crop top|dress|blouse|lehenga|shela|dupatta|kurti|kurta|one piece|stole|"
     r"suit|fabric|material|running|shawl|jacket|gown|skirt|potli|bag|jewell?ery")
@@ -113,14 +88,6 @@ def find_all(patterns, text):
         if re.search(r"\b(?:%s)\b" % pat, text) and label not in found:
             found.append(label)
     return found
-
-
-def silk_type(text):
-    if re.search(r"\bpure\b", text):
-        return "Pure silk"
-    if re.search(r"\bart\b|\bsemi\b|\bfancy\b", text):
-        return "Art silk"
-    return "Silk"
 
 
 def in_budget(price):
@@ -175,8 +142,6 @@ def pull_tathastu():
                 "photos": imgs,
                 "thumb": p["images"][0].get("thumbnail") or imgs[0],
                 "colours": find_all(COLOUR_WORDS, f"{name} {attrs}".lower()),
-                "silk": silk_type(core),
-                "weaves": find_all(WEAVES, core),
             })
         print(f"  Tathastu page {page}: {len(items)} sarees so far")
         page += 1
@@ -220,8 +185,6 @@ def pull_hastakala():
                 "photos": [shopify_img(s, 1600) for s in srcs],
                 "thumb": shopify_img(srcs[0], 160),
                 "colours": find_all(COLOUR_WORDS, f"{title} {opts}".lower()),
-                "silk": silk_type(f"{title} {tags}".lower()),
-                "weaves": find_all(WEAVES, title.lower()),
             })
         print(f"  Hastakala page {page}: {len(items)} sarees so far")
         page += 1
@@ -292,13 +255,12 @@ PAGE = """<!doctype html>
 *{box-sizing:border-box}
 html,body{margin:0}
 body{background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
-.wrap{max-width:1360px;margin:0 auto;padding:0 clamp(16px,4vw,48px)}
+.wrap{max-width:1840px;margin:0 auto;padding:0 clamp(16px,4vw,48px)}
 
 .filters{background:var(--panel);border-bottom:1px solid var(--line)}
 .filters .wrap{display:grid;gap:14px;padding-top:22px;padding-bottom:18px}
-.group{display:grid;grid-template-columns:96px 1fr;align-items:start;gap:12px}
-.group h2{font:italic 400 17px/1.2 "Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;margin:5px 0 0}
-.group h2 small{display:block;font:12px/1.3 system-ui,sans-serif;color:var(--muted);margin-top:2px;font-style:normal}
+.group{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.group h2{font:500 14px/1 system-ui,sans-serif;margin:0;color:var(--muted)}
 .chips{display:flex;flex-wrap:wrap;gap:8px}
 button.chip{font:inherit;font-size:13.5px;border:1px solid var(--line);background:transparent;color:var(--ink);
   padding:6px 13px;border-radius:999px;cursor:pointer;display:inline-flex;align-items:center;gap:7px;
@@ -314,7 +276,7 @@ button.chip[aria-pressed=true] .n{color:inherit;opacity:.75}
 button:focus-visible{outline:2px solid var(--on);outline-offset:2px}
 
 main.wrap{display:grid;gap:clamp(14px,2.4vw,32px);padding-top:clamp(20px,3vw,40px);padding-bottom:64px;
-  grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
+  grid-template-columns:repeat(auto-fill,minmax(250px,1fr))}
 .tile{all:unset;display:block;cursor:zoom-in;aspect-ratio:3/4;overflow:hidden;border-radius:6px;background:var(--tile)}
 .tile img{width:100%;height:100%;object-fit:cover;display:block;opacity:0;transition:opacity .3s,transform .4s}
 .tile img.ready{opacity:1}
@@ -323,22 +285,24 @@ main.wrap{display:grid;gap:clamp(14px,2.4vw,32px);padding-top:clamp(20px,3vw,40p
 .empty{grid-column:1/-1;color:var(--muted);padding:56px 0;text-align:center}
 
 .viewer{position:fixed;inset:0;z-index:20;background:rgba(12,10,13,.94);display:none;
-  align-items:center;justify-content:center;padding:56px 72px}
+  flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:56px 72px 40px}
 .viewer.open{display:flex}
-.viewer img{max-width:100%;max-height:100%;object-fit:contain;border-radius:4px;user-select:none}
+.viewer img{max-width:100%;min-height:0;flex:1 1 auto;object-fit:contain;border-radius:4px;user-select:none}
+.viewer .name{color:#fff;font-size:15px;text-align:center;margin:0}
 .viewer button{position:absolute;background:rgba(255,255,255,.08);color:#fff;border:0;cursor:pointer;
   width:44px;height:44px;border-radius:50%;font-size:22px;line-height:44px;padding:0}
 .viewer button:hover{background:rgba(255,255,255,.18)}
+.viewer button[hidden]{display:none}
+.viewer button:disabled{opacity:.25;cursor:default}
 .viewer .close{top:14px;right:14px}
 .viewer .prev{left:16px;top:50%;transform:translateY(-50%)}
 .viewer .next{right:16px;top:50%;transform:translateY(-50%)}
-.viewer .count{position:absolute;bottom:18px;left:0;right:0;text-align:center;color:rgba(255,255,255,.7);font-size:13px}
+.viewer .count{color:rgba(255,255,255,.6);font-size:13px;margin:-8px 0 0;min-height:1em}
 
 @media (max-width:640px){
   .filters{position:static}
-  .group{grid-template-columns:1fr;gap:6px}
   main.wrap{grid-template-columns:repeat(2,1fr)}
-  .viewer{padding:56px 8px 48px}
+  .viewer{padding:60px 8px 24px}
   .viewer .prev,.viewer .next{top:auto;bottom:8px;transform:none}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
@@ -350,23 +314,20 @@ main.wrap{display:grid;gap:clamp(14px,2.4vw,32px);padding-top:clamp(20px,3vw,40p
 
 <div class="viewer" id="viewer" role="dialog" aria-modal="true" aria-label="Saree photos">
   <img id="vimg" alt="">
+  <p class="name" id="vname"></p>
   <button class="close" id="vclose" aria-label="Close">&times;</button>
   <button class="prev" id="vprev" aria-label="Previous photo">&lsaquo;</button>
   <button class="next" id="vnext" aria-label="Next photo">&rsaquo;</button>
-  <div class="count" id="vcount"></div>
+  <p class="count" id="vcount"></p>
 </div>
 
 <script>
 const ITEMS = __ITEMS__;
 const COLOURS = __COLOURS__;
-const SILKS = __SILKS__;
 const PULLED = "__DATE__";
 const GROUPS = [
-  {key:"colours", title:"Rang", hint:"colour", many:true,
+  {key:"colours", title:"Colour", many:true,
    order:Object.keys(COLOURS), label:k=>COLOURS[k][0], swatch:k=>COLOURS[k][1]},
-  {key:"silk", title:"Resham", hint:"silk", order:Object.keys(SILKS), label:k=>SILKS[k]},
-  {key:"weaves", title:"Bunai", hint:"weave", many:true, label:k=>k},
-  {key:"shop", title:"Dukaan", hint:"shop", label:k=>k},
 ];
 const picked = Object.fromEntries(GROUPS.map(g=>[g.key,new Set()]));
 const vals = (it,g) => g.many ? (it[g.key]||[]) : [it[g.key]];
@@ -384,10 +345,10 @@ function renderFilters(){
     const keys = (g.order||[...all].sort()).filter(k=>all.has(k));
     if (keys.length < 2) continue;
     const row = document.createElement("div"); row.className = "group";
-    row.innerHTML = `<h2>${g.title}<small>${g.hint}</small></h2><div class="chips"></div>`;
+    row.innerHTML = `<h2>${g.title}</h2><div class="chips"></div>`;
     const chips = row.querySelector(".chips");
     for (const k of keys){
-      const b = document.createElement("button"); b.className = "chip"; b.title = k;
+      const b = document.createElement("button"); b.className = "chip";
       const on = picked[g.key].has(k);
       b.setAttribute("aria-pressed", on);
       b.disabled = !on && !counts[k];
@@ -419,15 +380,19 @@ document.getElementById("grid").addEventListener("click", e=>{
   const t = e.target.closest(".tile"); if (t) openViewer(+t.dataset.i, 0);
 });
 
-// ---- photo viewer: arrows step through a saree's photos, then on to the next saree
+// ---- photo viewer: one saree at a time, arrows step through its photos
 const $ = id => document.getElementById(id);
 const V = {el:$("viewer"), img:$("vimg"), count:$("vcount"), item:0, photo:0, opener:null};
 function photosOf(i){ const it = shown[i]; return it.photos && it.photos.length ? it.photos : [it.img]; }
 function show(){
   const ph = photosOf(V.item);
   V.img.src = ph[V.photo]; V.img.alt = shown[V.item].name;
+  $("vname").textContent = shown[V.item].name;
   V.count.textContent = ph.length > 1 ? `${V.photo+1} / ${ph.length}` : "";
-  const next = photosOf((V.item+1) % shown.length)[0]; new Image().src = next;
+  $("vprev").hidden = $("vnext").hidden = ph.length < 2;
+  $("vprev").disabled = V.photo === 0;
+  $("vnext").disabled = V.photo === ph.length - 1;
+  if (ph[V.photo+1]) new Image().src = ph[V.photo+1];
 }
 function openViewer(i, p){
   V.opener = document.activeElement; V.item = i; V.photo = p;
@@ -438,10 +403,8 @@ function closeViewer(){
   if (V.opener) V.opener.focus();
 }
 function step(d){
-  const ph = photosOf(V.item);
-  if (V.photo + d >= 0 && V.photo + d < ph.length){ V.photo += d; }
-  else { V.item = (V.item + d + shown.length) % shown.length; V.photo = d > 0 ? 0 : photosOf(V.item).length - 1; }
-  show();
+  const n = V.photo + d;
+  if (n >= 0 && n < photosOf(V.item).length){ V.photo = n; show(); }
 }
 $("vclose").onclick = closeViewer;
 $("vprev").onclick = ()=>step(-1);
@@ -475,14 +438,14 @@ def build_page(items):
             .replace("__DATE__", f"{d.day} {d.strftime('%B %Y')}")
             .replace("__ITEMS__", json.dumps(items, ensure_ascii=False).replace("</", "<\\/"))
             .replace("__COLOURS__", json.dumps(COLOURS))
-            .replace("__SILKS__", json.dumps(SILK_TYPES)))
+            )
     with open(OUTPUT, "w", encoding="utf-8") as f:
         f.write(page)
 
 
 def main():
     items = []
-    for label, fn in (("Tathastu", pull_tathastu), ("Hastakala", pull_hastakala)):
+    for label, fn in (("Hastakala", pull_hastakala), ("Tathastu", pull_tathastu)):
         print(f"Pulling {label}...")
         try:
             items += fn()
