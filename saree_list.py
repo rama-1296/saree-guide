@@ -565,7 +565,7 @@ def main():
         print(f"{len(missing)} sarees have no colour in their name. "
               "Run `pip install pillow` and re-run to guess them from photos.")
 
-      items = [it for it in items if it["colours"][:1] != ["Black"]]
+      items = [it for it in items if it["colours"][:1] != ["Black"]
     if not items:
         print("Nothing came back from either shop, so no page was written.")
         sys.exit(1)
