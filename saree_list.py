@@ -31,6 +31,7 @@ from datetime import date
 MIN_PRICE = 2000
 MAX_PRICE = 8500
 MAX_PHOTOS = 8          # photos per saree in the viewer
+SKIP_COLOURS = ["Black"]
 
 # Code prefix for each shop: HK01, HK02 ... and TT01, TT02 ...
 PREFIXES = {"Hastakala": "HK", "Tathastu": "TT"}
@@ -564,6 +565,7 @@ def main():
         print(f"{len(missing)} sarees have no colour in their name. "
               "Run `pip install pillow` and re-run to guess them from photos.")
 
+      items = [it for it in items if it["colours"][:1] != ["Black"]]
     if not items:
         print("Nothing came back from either shop, so no page was written.")
         sys.exit(1)
