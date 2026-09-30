@@ -1,4 +1,4 @@
-name: Build Resham Room
+name: Build saree list
 
 on:
   push:
@@ -28,11 +28,10 @@ jobs:
           python-version: "3.12"
       - run: pip install pillow
       - name: Build page and update private sheet
-        run: mkdir -p site && OUTPUT=site/index.html python resham_room.py
+        run: mkdir -p site && OUTPUT=site/index.html python saree_list.py
         env:
           SHEET_URL: ${{ secrets.SHEET_URL }}
           SHEET_TOKEN: ${{ secrets.SHEET_TOKEN }}
-          CODE_SALT: ${{ secrets.CODE_SALT }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
