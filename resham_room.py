@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """
 Pulls silk sarees between MIN_PRICE and MAX_PRICE from tathastu.fashion and
-hastakalaethnic.com and writes an image-only gallery page with a colour filter. Clicking a saree opens its photos in a viewer.
-No prices or titles are shown.
+hastakalaethnic.com and writes an image-only gallery page with a colour filter.
+Each saree gets a short code. The page shows only the code; the private
+spreadsheet (Google Sheet, or sarees-private.csv when run locally) maps each
+code to the saree's name and shop link.
 
 Run:   python3 resham_room.py
 Optional: `pip install pillow` to guess colours from photos when the name
@@ -10,6 +12,9 @@ doesn't mention one (most Tathastu listings).
 """
 
 import colorsys
+import csv
+import hashlib
+import hmac
 import html
 import io
 import json
@@ -26,9 +31,21 @@ from datetime import date
 MIN_PRICE = 2000
 MAX_PRICE = 8500
 MAX_PHOTOS = 8          # photos per saree in the viewer
+
+# Columns in the private spreadsheet. To add more, see sheet_row() below.
+SHEET_COLUMNS = ["Code", "Name", "Link"]
+
+# Saree data that goes into the public page. Anything not listed here stays
+# out of the page's source code. Add "shop", "silk" or "weaves" if you bring
+# those filters back. Never add "name", "link" or "price".
+PUBLIC_FIELDS = ["code", "img", "photos", "colours"]
 # -----------------------------------------------------------------------------
 
 OUTPUT = os.environ.get("OUTPUT", "resham-room.html")
+LOCAL_SHEET = "sarees-private.csv"       # used when no Google Sheet is set up
+SHEET_URL = os.environ.get("SHEET_URL")      # Apps Script web app URL (GitHub secret)
+SHEET_TOKEN = os.environ.get("SHEET_TOKEN")  # shared password (GitHub secret)
+CODE_SALT = os.environ.get("CODE_SALT") or "resham-room"  # keeps codes unguessable
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/537.36 "
                   "(KHTML, like Gecko) Chrome/126.0 Safari/537.36",
@@ -94,6 +111,20 @@ def in_budget(price):
     return MIN_PRICE <= price < MAX_PRICE
 
 
+CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"   # no 0/O, 1/I/L
+
+
+def make_code(shop, product_id, length=5):
+    """Same saree always gets the same code, but the code can't be traced back."""
+    digest = hmac.new(CODE_SALT.encode(), f"{shop}:{product_id}".encode(), hashlib.sha256).digest()
+    n = int.from_bytes(digest[:8], "big")
+    out = ""
+    for _ in range(length):
+        n, r = divmod(n, len(CODE_ALPHABET))
+        out += CODE_ALPHABET[r]
+    return out
+
+
 def get(url, as_json=True, tries=3):
     for attempt in range(tries):
         try:
@@ -127,17 +158,21 @@ def pull_tathastu():
             core = f"{name} {cats}".lower()
             if "silk" not in core or "saree" not in core or NOT_SAREE.search(name.lower()):
                 continue
-            if not p.get("is_in_stock", True) or not p.get("images"):
+            if p.get("is_in_stock") is not True or p.get("is_purchasable") is False or not p.get("images"):
                 continue
             pr = p.get("prices", {})
             minor = 10 ** int(pr.get("currency_minor_unit", 0))
             raw = (pr.get("price_range") or {}).get("min_amount") or pr.get("price") or 0
-            if not in_budget(int(raw) / minor):
+            price = int(raw) / minor
+            if not in_budget(price):
                 continue
             imgs = [i.get("src") for i in p["images"] if i.get("src")][:MAX_PHOTOS]
             items.append({
                 "shop": "Tathastu",
+                "id": p.get("id"),
                 "name": name.title(),
+                "link": p.get("permalink"),
+                "price": price,
                 "img": imgs[0],
                 "photos": imgs,
                 "thumb": p["images"][0].get("thumbnail") or imgs[0],
@@ -172,15 +207,19 @@ def pull_hastakala():
             is_saree = "saree" in ptype if ptype else "saree" in title.lower()
             if not is_saree or "silk" not in text or NOT_SAREE.search(title.lower()):
                 continue
-            variants = [v for v in p.get("variants", []) if v.get("available", True)]
+            variants = [v for v in p.get("variants", []) if v.get("available") is True]
             if not variants or not p.get("images"):
                 continue
-            if not in_budget(min(float(v.get("price") or 0) for v in variants)):
+            price = min(float(v.get("price") or 0) for v in variants)
+            if not in_budget(price):
                 continue
             srcs = [i["src"] for i in p["images"] if i.get("src")][:MAX_PHOTOS]
             items.append({
                 "shop": "Hastakala",
+                "id": p.get("id"),
                 "name": title,
+                "link": f"https://hastakalaethnic.com/products/{p.get('handle')}",
+                "price": price,
                 "img": shopify_img(srcs[0], 800),
                 "photos": [shopify_img(s, 1600) for s in srcs],
                 "thumb": shopify_img(srcs[0], 160),
@@ -288,7 +327,7 @@ main.wrap{display:grid;gap:clamp(14px,2.4vw,32px);padding-top:clamp(20px,3vw,40p
   flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:56px 72px 40px}
 .viewer.open{display:flex}
 .viewer img{max-width:100%;min-height:0;flex:1 1 auto;object-fit:contain;border-radius:4px;user-select:none}
-.viewer .name{color:#fff;font-size:15px;text-align:center;margin:0}
+.viewer .name{color:#fff;font-size:15px;letter-spacing:.08em;text-align:center;margin:0}
 .viewer button{position:absolute;background:rgba(255,255,255,.08);color:#fff;border:0;cursor:pointer;
   width:44px;height:44px;border-radius:50%;font-size:22px;line-height:44px;padding:0}
 .viewer button:hover{background:rgba(255,255,255,.18)}
@@ -372,7 +411,7 @@ function render(){
   renderFilters();
   const grid = document.getElementById("grid");
   grid.innerHTML = shown.length ? shown.map((it,i)=>
-    `<button class="tile" data-i="${i}" aria-label="${esc(it.name)}">`+
+    `<button class="tile" data-i="${i}" aria-label="Saree ${esc(it.code)}">`+
     `<img src="${esc(it.img)}" alt="" loading="lazy" referrerpolicy="no-referrer" onload="this.classList.add('ready')"></button>`).join("")
     : `<p class="empty">No sarees match all of these. Remove a filter to see more.</p>`;
 }
@@ -386,8 +425,8 @@ const V = {el:$("viewer"), img:$("vimg"), count:$("vcount"), item:0, photo:0, op
 function photosOf(i){ const it = shown[i]; return it.photos && it.photos.length ? it.photos : [it.img]; }
 function show(){
   const ph = photosOf(V.item);
-  V.img.src = ph[V.photo]; V.img.alt = shown[V.item].name;
-  $("vname").textContent = shown[V.item].name;
+  V.img.src = ph[V.photo]; V.img.alt = "Saree " + shown[V.item].code;
+  $("vname").textContent = shown[V.item].code;
   V.count.textContent = ph.length > 1 ? `${V.photo+1} / ${ph.length}` : "";
   $("vprev").hidden = $("vnext").hidden = ph.length < 2;
   $("vprev").disabled = V.photo === 0;
@@ -431,16 +470,42 @@ render();
 
 
 def build_page(items):
-    for it in items:
-        it.pop("thumb", None)
+    public = [{k: it[k] for k in PUBLIC_FIELDS if k in it} for it in items]
     d = date.today()
     page = (PAGE
             .replace("__DATE__", f"{d.day} {d.strftime('%B %Y')}")
-            .replace("__ITEMS__", json.dumps(items, ensure_ascii=False).replace("</", "<\\/"))
+            .replace("__ITEMS__", json.dumps(public, ensure_ascii=False).replace("</", "<\\/"))
             .replace("__COLOURS__", json.dumps(COLOURS))
             )
     with open(OUTPUT, "w", encoding="utf-8") as f:
         f.write(page)
+
+
+def sheet_row(it):
+    """One spreadsheet row per saree, in the same order as SHEET_COLUMNS."""
+    return [it["code"], it["name"], it["link"]]
+
+
+def write_sheet(items):
+    rows = [sheet_row(it) for it in items]
+    if SHEET_URL and SHEET_TOKEN:
+        body = json.dumps({"token": SHEET_TOKEN, "header": SHEET_COLUMNS, "rows": rows}).encode()
+        req = urllib.request.Request(SHEET_URL, data=body,
+                                     headers={"Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=60) as r:
+                reply = r.read().decode(errors="replace")[:80]
+            print(f"Google Sheet: {reply}")
+        except Exception as e:
+            print(f"Google Sheet update failed ({type(e).__name__}). The page was still built.")
+    elif os.environ.get("GITHUB_ACTIONS"):
+        print("No Google Sheet set up (SHEET_URL / SHEET_TOKEN secrets missing), so no spreadsheet this run.")
+    else:
+        with open(LOCAL_SHEET, "w", newline="", encoding="utf-8") as f:
+            w = csv.writer(f)
+            w.writerow(SHEET_COLUMNS)
+            w.writerows(rows)
+        print(f"Spreadsheet saved to {LOCAL_SHEET} (keep this file out of anything you upload)")
 
 
 def main():
@@ -466,8 +531,19 @@ def main():
     if not items:
         print("Nothing came back from either shop, so no page was written.")
         sys.exit(1)
+    used = set()
+    for it in items:
+        length = 5
+        code = make_code(it["shop"], it["id"], length)
+        while code in used:                     # rare clash: use a longer code
+            length += 1
+            code = make_code(it["shop"], it["id"], length)
+        used.add(code)
+        it["code"] = code
+
     build_page(items)
     print(f"Done: {len(items)} sarees written to {OUTPUT}")
+    write_sheet(items)
 
 
 if __name__ == "__main__":
